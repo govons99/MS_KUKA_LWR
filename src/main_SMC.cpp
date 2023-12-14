@@ -159,6 +159,7 @@ int main(int argc, char *argv[])
 
 	Eigen::Matrix<double, 2, 2> Mass_2R;
 	Eigen::Matrix<double, 2, 1> Coriolis_2R;
+	Eigen::Matrix<double, 2, 2> Coriolis_fact_2R;
 	Eigen::Matrix<double, 2, 1> Gravity_2R;
 
 	// vertical plane
@@ -167,7 +168,7 @@ int main(int argc, char *argv[])
 	Eigen::Matrix<double, 2, 1> vel_2R {0, 0};
 	Eigen::Matrix<double, 2, 1> pos_2R {Controller.Q(1), Controller.Q(3)};
 
-	// computed torque
+	// sliding mode control
 
 	double w1 = 0.0;
 	double w2 = 0.0;
@@ -182,10 +183,18 @@ int main(int argc, char *argv[])
 	Eigen::MatrixXd qd_dot = Eigen::MatrixXd::Zero(2,1);
 	Eigen::MatrixXd qd_ddot = Eigen::MatrixXd::Zero(2,1);
 
-	Eigen::MatrixXd curr_pos = Eigen::MatrixXd::Zero(2,1);
-	Eigen::MatrixXd curr_vel = Eigen::MatrixXd::Zero(2,1);
+	Eigen::MatrixXd s = Eigen::MatrixXd::Zero(2,1);
+	Eigen::MatrixXd sr = Eigen::MatrixXd::Zero(2,1);
+	Eigen::MatrixXd sr_dot = Eigen::MatrixXd::Zero(2,1);
+	
+	double lambda = 8.0;
+	double k = 150;
+	Eigen::MatrixXd phi(2,1);
+	phi(0) = 0.09;
+	phi(1) = 0.03;
 
 	Eigen::Matrix<double, 2, 1> error;
+	Eigen::Matrix<double, 2, 1> vel_error;
 
 	Eigen::Matrix<double, 2, 1> control {0.0, 0.0};
 
@@ -202,11 +211,6 @@ int main(int argc, char *argv[])
 	std::string error_save = "error.txt";
 
 	std::ofstream file_error(error_save);
-
-	// PD Gains --> to be tuned for real robot
-
-	double P_Gain = 70.0;
-	double D_Gain = 20.0;
 	
 	//SIMULATION LOOP
 	while ((float)CycleCounter * Controller.FRI->GetFRICycleTime() < RUN_TIME_IN_SECONDS)
@@ -219,27 +223,12 @@ int main(int argc, char *argv[])
 
 		w1_dot = -0.4*sin(Time_2R);
 		w2_dot = 0.4*sin(Time_2R);
-
-		w1_ddot = -0.4*cos(Time_2R);
-		w2_ddot = 0.4*cos(Time_2R);
-
-		qd(0) = w1;
-		qd(1) = w2;
-
-		qd_dot(0) = w1_dot;
-		qd_dot(1) = w2_dot;
-
-		qd_ddot(0) = w1_ddot;
-		qd_ddot(1) = w2_ddot;
 		
 		error(0) = Controller.Q(1)-w1;
 		error(1) = Controller.Q(3)-w2;
 
-		curr_pos(0) = Controller.Q(1);
-		curr_pos(1) = Controller.Q(3);
-
-		curr_vel(0) = Controller.dQ_hat(1);
-		curr_vel(1) = Controller.dQ_hat(3);
+		vel_error(0) = Controller.Q_hat(1)-w1_dot;
+		vel_error(1) = Controller.Q_hat(3)-w1_dot;
 
 		std::cout << "error \n" << error << std::endl;
 
@@ -248,6 +237,12 @@ int main(int argc, char *argv[])
 		file_error << "\n";
 
 		Time_2R += DELTAT_2R;
+
+		// SLIDING
+
+		sr = qd_dot - lambda*( pos_2R - qd );
+		s = vel_2R - sr;
+		sr_dot = qd_ddot - lambda*vel_error;
 
 		// 2R SIMULATION
 
@@ -259,12 +254,17 @@ int main(int argc, char *argv[])
 		Coriolis_2R(0) = -m2*l1*l2*sin(State_2R(1))*std::pow(2,State_2R(3))-2*m2*l1*l2*sin(State_2R(1))*State_2R(2)*State_2R(3);
 		Coriolis_2R(1) = m2*l1*l2*sin(State_2R(1))*std::pow(2,State_2R(2));
 
+		Coriolis_fact_2R(0,0) = -l1*l2*m2*sin(State_2R(1))*State_2R(3);
+		Coriolis_fact_2R(0,1) = -l1*l2*m2*sin(State_2R(1))*(State_2R(2)+State_2R(3));
+		Coriolis_fact_2R(1,0) = l1*l2*m2*sin(State_2R(1))*State_2R(2);
+		Coriolis_fact_2R(1,1) = 0.0;
+
 		Gravity_2R(0) = cos(State_2R(0)+State_2R(1))*m2*9.81*l2 + cos(State_2R(0))*(m1+m2)*l1*9.81;
 		Gravity_2R(1) = cos(State_2R(0)+State_2R(1))*m2*9.81*l2;
 
-		// "computed torque" --> FBL + [PD + FFW]
+		// Sliding Mode Control
 
-		control = Mass_2R*( qd_ddot + P_Gain * (qd - curr_pos) + D_Gain * (qd_dot - curr_vel)) + Coriolis_2R + Gravity_2R; 
+		control = Mass_2R*sr_dot + Coriolis_fact_2R*sr + Gravity_2R - k*Controller.switching(s,phi); 
 		
 		acc_2R = Mass_2R.inverse()*(control - Coriolis_2R - Gravity_2R);
 

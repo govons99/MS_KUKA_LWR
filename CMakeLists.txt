@@ -84,6 +84,8 @@ add_executable(main_DAR_circ2 "${CMAKE_CURRENT_SOURCE_DIR}/src/main_DAR_circ2.cp
 
 add_executable(main_FBL_PD "${CMAKE_CURRENT_SOURCE_DIR}/src/main_FBL_PD.cpp")
 
+add_executable(main_SMC "${CMAKE_CURRENT_SOURCE_DIR}/src/main_SMC.cpp")
+
 add_executable(main_PD "${CMAKE_CURRENT_SOURCE_DIR}/src/main_PD.cpp")
 
 #add_executable(main_sim_noise "${CMAKE_CURRENT_SOURCE_DIR}/src/main_sim_noise.cpp")
@@ -116,6 +118,8 @@ target_link_libraries(main_DAR_circ controller_kuka)
 target_link_libraries(main_DAR_circ2 controller_kuka)
 
 target_link_libraries(main_FBL_PD controller_kuka)
+
+target_link_libraries(main_SMC controller_kuka)
 
 target_link_libraries(main_PD controller_kuka)
 

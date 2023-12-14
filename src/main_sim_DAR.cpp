@@ -9,7 +9,7 @@ int main(int argc, char *argv[])
 	unsigned int				CycleCounter	=	0;
 	double 						Time = 0.0;
 	double						frequency = 1.0;
-	double 						tf = 500.0;
+	double 						tf = 800.0;
 
 	std::chrono::time_point<std::chrono::system_clock> Tic, Toc;
 
@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
 
 	Kuka_Vec Torques_ref;
 
-	Kuka_Vec Torques_nom;
+	Kuka_Vec Torques_nom = Kuka_Vec::Constant(0.0);
 
 	Kuka_Vec Torques_measured;
 
@@ -531,10 +531,10 @@ int main(int argc, char *argv[])
 		// control = Theta * state_output;
 
 		// "computed torque" --> FBL + [PD + FFW]
-		 control = Mass_2R*( qd_ddot + P_Gain * (qd - pos_2R) + D_Gain * (qd_dot - vel_2R)) + Coriolis_2R + Gravity_2R; 
+		// control = Mass_2R*( qd_ddot + P_Gain * (qd - pos_2R) + D_Gain * (qd_dot - vel_2R)) + Coriolis_2R + Gravity_2R; 
 
 		// sliding mode control
-		// control = Mass_2R*sr_dot + Coriolis_fact_2R*sr + Gravity_2R - k*Controller.switching(s,phi);
+		 control = Mass_2R*sr_dot + Coriolis_fact_2R*sr + Gravity_2R - k*Controller.switching(s,phi);
 		
 		/*
 		if ( control(0) >= th )
@@ -580,11 +580,14 @@ int main(int argc, char *argv[])
 
 		// REDUCED OBSERVER
 
-		Controller.dz = Controller.SimReducedObserver(Controller.Q, Controller.dQ_hat, Torques_nom);
+		//Torques_nom(1) = control(0);
+		//Torques_nom(3) = control(1); 
 
-		Controller.z = Controller.EulerIntegration(Controller.dz, Controller.z);
+		//Controller.dz = Controller.SimReducedObserver(Controller.Q, Controller.dQ_hat, Torques_nom);
 
-		Controller.dQ_hat = Controller.z + Controller.k0*Controller.Q;
+		//Controller.z = Controller.EulerIntegration(Controller.dz, Controller.z);
+
+		//Controller.dQ_hat = Controller.z + Controller.k0*Controller.Q;
 
 		// FULL-STATE PBSERVER: Nicosia-Tomei
 
