@@ -223,6 +223,18 @@ int main(int argc, char *argv[])
 
 		w1_dot = -0.4*sin(Time_2R);
 		w2_dot = 0.4*sin(Time_2R);
+
+		w1_ddot = -0.4*cos(Time_2R);
+		w2_ddot = 0.4*cos(Time_2R);
+
+		qd(0) = w1;
+		qd(1) = w2;
+
+		qd_dot(0) = w1_dot;
+		qd_dot(1) = w2_dot;
+
+		qd_ddot(0) = w1_ddot;
+		qd_ddot(1) = w2_ddot;
 		
 		error(0) = Controller.Q(1)-w1;
 		error(1) = Controller.Q(3)-w2;
