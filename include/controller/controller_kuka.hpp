@@ -148,6 +148,10 @@ class controller_kuka : public controller
             std::cout << "I am here \n";
         };
 
+        // reduced observer for the 2R
+
+        Eigen::MatrixXd SimReducedObserver2R(Eigen::MatrixXd Q, Eigen::MatrixXd dQ_hat, Eigen::MatrixXd Torque);
+
         // sign function HOMEMADE
 
         double sign(double value);

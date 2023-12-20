@@ -159,13 +159,21 @@ int main(int argc, char *argv[])
 
 	Eigen::Matrix<double, 2, 2> Mass_2R;
 	Eigen::Matrix<double, 2, 1> Coriolis_2R;
+	Eigen::Matrix<double, 2, 1> Coriolis_2R_hat;
 	Eigen::Matrix<double, 2, 1> Gravity_2R;
 
 	// vertical plane
+
 	Eigen::Matrix<double, 4, 1> State_2R = {Controller.Q(1), Controller.Q(3), 0, 0};
 	Eigen::Matrix<double, 2, 1> acc_2R {0, 0};
 	Eigen::Matrix<double, 2, 1> vel_2R {0, 0};
 	Eigen::Matrix<double, 2, 1> pos_2R {Controller.Q(1), Controller.Q(3)};
+
+	// reduced observer 2R
+
+	Eigen::Matrix<double, 2, 1> z_2R {0, 0};
+	Eigen::Matrix<double, 2, 1> dz_2R {0, 0};
+	Eigen::Matrix<double, 2, 1> vel_2R_hat {0, 0};
 
 	// computed torque
 
@@ -193,11 +201,7 @@ int main(int argc, char *argv[])
 
 	double Time_2R = 0.0;
 
-	// file for the evolution of the internal model
-
-	std::string eta_save = "eta.txt";
-
-	std::ofstream file(eta_save);
+	// file for the error
 
 	std::string error_save = "error.txt";
 
@@ -259,13 +263,18 @@ int main(int argc, char *argv[])
 		Coriolis_2R(0) = -m2*l1*l2*sin(State_2R(1))*std::pow(2,State_2R(3))-2*m2*l1*l2*sin(State_2R(1))*State_2R(2)*State_2R(3);
 		Coriolis_2R(1) = m2*l1*l2*sin(State_2R(1))*std::pow(2,State_2R(2));
 
+		Coriolis_2R_hat(0) = -m2*l1*l2*sin(State_2R(1))*std::pow(2,vel_2R_hat(1))-2*m2*l1*l2*sin(State_2R(1))*vel_2R_hat(0)*vel_2R_hat(1);
+		Coriolis_2R_hat(1) = m2*l1*l2*sin(State_2R(1))*std::pow(2,vel_2R_hat(0));
+
 		Gravity_2R(0) = cos(State_2R(0)+State_2R(1))*m2*9.81*l2 + cos(State_2R(0))*(m1+m2)*l1*9.81;
 		Gravity_2R(1) = cos(State_2R(0)+State_2R(1))*m2*9.81*l2;
 
 		// "computed torque" --> FBL + [PD + FFW]
 
-		control = Mass_2R*( qd_ddot + P_Gain * (qd - curr_pos) + D_Gain * (qd_dot - curr_vel)) + Coriolis_2R + Gravity_2R; 
+		// control = Mass_2R*( qd_ddot + P_Gain * (qd - curr_pos) + D_Gain * (qd_dot - curr_vel)) + Coriolis_2R + Gravity_2R; 
 		
+		control = Mass_2R*( qd_ddot + P_Gain * (qd - pos_2R) + D_Gain * (qd_dot - vel_2R_hat)) + Coriolis_2R_hat + Gravity_2R; 
+
 		acc_2R = Mass_2R.inverse()*(control - Coriolis_2R - Gravity_2R);
 
 		vel_2R = vel_2R + DELTAT_2R * acc_2R;
@@ -384,13 +393,16 @@ int main(int argc, char *argv[])
 
 		// REDUCED OBSERVER
 
-		Controller.dz = Controller.SimReducedObserver(Controller.Q, Controller.dQ_hat, Torques_nom);
+		dz_2R = Controller.SimReducedObserver2R(pos_2R, vel_2R_hat, control);
 
-		Controller.z = Controller.EulerIntegration(Controller.dz, Controller.z);
+		z_2R = z_2R + DELTAT_2R*dz_2R;
 
-		Controller.dQ_hat = Controller.z + Controller.k0*Controller.Q;
+		vel_2R_hat = z_2R + Controller.k0*pos_2R;
 
 		// Saving estimated quantities
+
+		Controller.dQ_hat(1) = vel_2R_hat(0);
+		Controller.dQ_hat(3) = vel_2R_hat(1);
 
 		Controller.dQ_hat_save.push_back(Controller.dQ_hat);
 
@@ -413,8 +425,6 @@ int main(int argc, char *argv[])
 	}
 
 	//Writing Experiment Variables
-
-	file.close();
 
 	file_error.close();
 

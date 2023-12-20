@@ -160,13 +160,21 @@ int main(int argc, char *argv[])
 	Eigen::Matrix<double, 2, 2> Mass_2R;
 	Eigen::Matrix<double, 2, 1> Coriolis_2R;
 	Eigen::Matrix<double, 2, 2> Coriolis_fact_2R;
+	Eigen::Matrix<double, 2, 2> Coriolis_fact_2R_hat;
 	Eigen::Matrix<double, 2, 1> Gravity_2R;
 
 	// vertical plane
+
 	Eigen::Matrix<double, 4, 1> State_2R = {Controller.Q(1), Controller.Q(3), 0, 0};
 	Eigen::Matrix<double, 2, 1> acc_2R {0, 0};
 	Eigen::Matrix<double, 2, 1> vel_2R {0, 0};
 	Eigen::Matrix<double, 2, 1> pos_2R {Controller.Q(1), Controller.Q(3)};
+
+	// reduced-order observer 2R
+
+	Eigen::Matrix<double, 2, 1> z_2R {0, 0};
+	Eigen::Matrix<double, 2, 1> dz_2R {0, 0};
+	Eigen::Matrix<double, 2, 1> vel_2R_hat {0, 0};
 
 	// sliding mode control
 
@@ -239,8 +247,8 @@ int main(int argc, char *argv[])
 		error(0) = Controller.Q(1)-w1;
 		error(1) = Controller.Q(3)-w2;
 
-		vel_error(0) = Controller.Q_hat(1)-w1_dot;
-		vel_error(1) = Controller.Q_hat(3)-w1_dot;
+		vel_error(0) = Controller.dQ_hat(1)-w1_dot;
+		vel_error(1) = Controller.dQ_hat(3)-w1_dot;
 
 		std::cout << "error \n" << error << std::endl;
 
@@ -253,7 +261,7 @@ int main(int argc, char *argv[])
 		// SLIDING
 
 		sr = qd_dot - lambda*( pos_2R - qd );
-		s = vel_2R - sr;
+		s = vel_2R_hat - sr;
 		sr_dot = qd_ddot - lambda*vel_error;
 
 		// 2R SIMULATION
@@ -271,12 +279,17 @@ int main(int argc, char *argv[])
 		Coriolis_fact_2R(1,0) = l1*l2*m2*sin(State_2R(1))*State_2R(2);
 		Coriolis_fact_2R(1,1) = 0.0;
 
+		Coriolis_fact_2R(0,0) = -l1*l2*m2*sin(State_2R(1))*State_2R(3);
+		Coriolis_fact_2R(0,1) = -l1*l2*m2*sin(State_2R(1))*(State_2R(2)+State_2R(3));
+		Coriolis_fact_2R(1,0) = l1*l2*m2*sin(State_2R(1))*State_2R(2);
+		Coriolis_fact_2R(1,1) = 0.0;
+
 		Gravity_2R(0) = cos(State_2R(0)+State_2R(1))*m2*9.81*l2 + cos(State_2R(0))*(m1+m2)*l1*9.81;
 		Gravity_2R(1) = cos(State_2R(0)+State_2R(1))*m2*9.81*l2;
 
 		// Sliding Mode Control
 
-		control = Mass_2R*sr_dot + Coriolis_fact_2R*sr + Gravity_2R - k*Controller.switching(s,phi); 
+		control = Mass_2R*sr_dot + Coriolis_fact_2R_hat*sr + Gravity_2R - k*Controller.switching(s,phi); 
 		
 		acc_2R = Mass_2R.inverse()*(control - Coriolis_2R - Gravity_2R);
 
@@ -396,13 +409,16 @@ int main(int argc, char *argv[])
 
 		// REDUCED OBSERVER
 
-		Controller.dz = Controller.SimReducedObserver(Controller.Q, Controller.dQ_hat, Torques_nom);
+		dz_2R = Controller.SimReducedObserver2R(pos_2R, vel_2R_hat, control);
 
-		Controller.z = Controller.EulerIntegration(Controller.dz, Controller.z);
+		z_2R = z_2R + DELTAT_2R*dz_2R;
 
-		Controller.dQ_hat = Controller.z + Controller.k0*Controller.Q;
+		vel_2R_hat = z_2R + Controller.k0*pos_2R;
 
 		// Saving estimated quantities
+
+		Controller.dQ_hat(1) = vel_2R_hat(0);
+		Controller.dQ_hat(3) = vel_2R_hat(1);
 
 		Controller.dQ_hat_save.push_back(Controller.dQ_hat);
 

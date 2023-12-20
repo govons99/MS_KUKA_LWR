@@ -68,6 +68,7 @@ class controller
             //LINEAR GAIN FOR THE REDUCED OBSERVER
             
             //Simulation
+            // k0 = 10;
             k0 = 10;
 
             //Real robot
