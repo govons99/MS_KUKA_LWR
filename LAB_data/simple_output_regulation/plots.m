@@ -67,6 +67,10 @@ plot(time,dq_hat(:,4));
 title('joint speed (estimated)');
 legend('dq1','dq2');
 
+figure()
+hold on; grid on;
+plot(dq)
+
 %% internal model
 
 figure()

@@ -245,6 +245,9 @@ int main(int argc, char *argv[])
 		curr_vel(0) = Controller.dQ_hat(1);
 		curr_vel(1) = Controller.dQ_hat(3);
 
+		//curr_vel(0) = Controller.dQ(1);
+		//curr_vel(1) = Controller.dQ(3);
+
 		std::cout << "error \n" << error << std::endl;
 
 		file_error << error.transpose();
@@ -271,9 +274,7 @@ int main(int argc, char *argv[])
 
 		// "computed torque" --> FBL + [PD + FFW]
 
-		// control = Mass_2R*( qd_ddot + P_Gain * (qd - curr_pos) + D_Gain * (qd_dot - curr_vel)) + Coriolis_2R + Gravity_2R; 
-		
-		control = Mass_2R*( qd_ddot + P_Gain * (qd - pos_2R) + D_Gain * (qd_dot - vel_2R_hat)) + Coriolis_2R_hat + Gravity_2R; 
+		control = Mass_2R*( qd_ddot + P_Gain * (qd - curr_pos) + D_Gain * (qd_dot - curr_vel)) + Coriolis_2R + Gravity_2R; 
 
 		acc_2R = Mass_2R.inverse()*(control - Coriolis_2R - Gravity_2R);
 
@@ -309,45 +310,21 @@ int main(int argc, char *argv[])
 
 		state = Controller.GetState(FLAG);
 
-		// FULL-STATE PBSERVER: Nicosia-Tomei
+		// std::cout << Controller.Qold << std::endl;
 
-		/*
-		y_tilda = Controller.Q - Controller.Q_hat;
+		Controller.dQ = (Controller.Q-Controller.Qold)/DELTAT_2R;
 
-		dx1_hat = Controller.dQ_hat + Controller.kd*y_tilda;
-
-		d2Q_hat = Controller.SimObserver(Controller.Q, y_tilda, dx1_hat, Torques_nom);
-
-		Controller.Q_hat = Controller.EulerIntegration(dx1_hat, Controller.Q_hat);
-
-		Controller.dQ_hat = Controller.EulerIntegration(d2Q_hat, Controller.dQ_hat);
-		*/	
+		//std::cout << Controller.dQ << std::endl;
 
 		Controller.Qsave.push_back(Controller.Q);
 
-		Controller.dQsave.push_back(Controller.dQ);	
-
-		// UPDATING COORDINATES
-
-		Controller.Qold = Controller.Q;
-
-		Controller.dQold = Controller.dQ;
-
-		Controller.dQ = Controller.EulerIntegration(Controller.d2Q,Controller.dQ);
-
-		Controller.Q = Controller.EulerIntegration(Controller.dQ,Controller.Q);
-
-		Controller.dQ_num = Controller.EulerDifferentiation(Controller.Q,Controller.Qold);
-		
-		Controller.GetState(FLAG); 
-
-		//ARRAY SAVING
+		Controller.dQsave.push_back(Controller.dQ);
 
 		Q_filtered = Controller.Filter(Controller.Qsave,FILTER_LENGTH);
 
-		dQ_filtered = Controller.Filter(Controller.dQsave,FILTER_LENGTH);
-
 		Controller.d2Q = Controller.EulerDifferentiation(dQ_filtered,Controller.dQsave_filtered.back());
+
+		Controller.d2Qold = Controller.d2Q;
 
 		Controller.d2Qsave.push_back(Controller.d2Q);
 
@@ -358,6 +335,10 @@ int main(int argc, char *argv[])
 		Controller.dQsave_filtered.push_back(dQ_filtered);
 		
 		Controller.d2Qsave_filtered.push_back(d2Q_filtered);
+
+		Controller.old_state_filtered = Controller.state_filtered;
+
+		Controller.state_filtered << Q_filtered, dQ_filtered;
 
 		// Saving state reference values
 
@@ -374,7 +355,7 @@ int main(int argc, char *argv[])
 		if((!Controller.VelocitySafety(Controller.dQ)) || (!Controller.JointSafety(Controller.Q)))
 		{	
 			//EXITING THE CONTROL LOOP
-			std::cout << "Breaking safety controllers for either Velocities and Joints position \n";
+			std::cout << "Breaking safety controllers for either Velocities or Joints position \n";
 			break;
 		}
 

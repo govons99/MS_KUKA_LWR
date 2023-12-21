@@ -279,17 +279,12 @@ int main(int argc, char *argv[])
 		Coriolis_fact_2R(1,0) = l1*l2*m2*sin(State_2R(1))*State_2R(2);
 		Coriolis_fact_2R(1,1) = 0.0;
 
-		Coriolis_fact_2R(0,0) = -l1*l2*m2*sin(State_2R(1))*State_2R(3);
-		Coriolis_fact_2R(0,1) = -l1*l2*m2*sin(State_2R(1))*(State_2R(2)+State_2R(3));
-		Coriolis_fact_2R(1,0) = l1*l2*m2*sin(State_2R(1))*State_2R(2);
-		Coriolis_fact_2R(1,1) = 0.0;
-
 		Gravity_2R(0) = cos(State_2R(0)+State_2R(1))*m2*9.81*l2 + cos(State_2R(0))*(m1+m2)*l1*9.81;
 		Gravity_2R(1) = cos(State_2R(0)+State_2R(1))*m2*9.81*l2;
 
 		// Sliding Mode Control
 
-		control = Mass_2R*sr_dot + Coriolis_fact_2R_hat*sr + Gravity_2R - k*Controller.switching(s,phi); 
+		control = Mass_2R*sr_dot + Coriolis_fact_2R*sr + Gravity_2R - k*Controller.switching(s,phi); 
 		
 		acc_2R = Mass_2R.inverse()*(control - Coriolis_2R - Gravity_2R);
 
@@ -325,19 +320,7 @@ int main(int argc, char *argv[])
 
 		state = Controller.GetState(FLAG);
 
-		// FULL-STATE PBSERVER: Nicosia-Tomei
-
-		/*
-		y_tilda = Controller.Q - Controller.Q_hat;
-
-		dx1_hat = Controller.dQ_hat + Controller.kd*y_tilda;
-
-		d2Q_hat = Controller.SimObserver(Controller.Q, y_tilda, dx1_hat, Torques_nom);
-
-		Controller.Q_hat = Controller.EulerIntegration(dx1_hat, Controller.Q_hat);
-
-		Controller.dQ_hat = Controller.EulerIntegration(d2Q_hat, Controller.dQ_hat);
-		*/	
+		Controller.dQ = (Controller.Q-Controller.Qold)/DELTAT_2R;	
 
 		Controller.Qsave.push_back(Controller.Q);
 
